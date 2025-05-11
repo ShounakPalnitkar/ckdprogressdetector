@@ -31,28 +31,6 @@
             padding: 3rem;
         }
 
-        .stage-tracker {
-            height: 30px;
-            background: linear-gradient(90deg, 
-                var(--stage1) 20%,
-                var(--stage2) 20% 40%,
-                var(--stage3) 40% 60%,
-                var(--stage4) 60% 80%,
-                var(--stage5) 80% 100%);
-            border-radius: 15px;
-            margin: 2rem 0;
-            position: relative;
-        }
-
-        .progress-marker {
-            position: absolute;
-            height: 40px;
-            width: 4px;
-            background: #212121;
-            top: -5px;
-            transition: left 0.5s ease;
-        }
-
         .input-section {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -89,14 +67,6 @@
             margin-top: 2rem;
         }
 
-        .emergency-alert {
-            background: #ffebee;
-            border-left: 5px solid #c62828;
-            padding: 1rem;
-            margin: 1rem 0;
-            display: none;
-        }
-
         .dashboard-card {
             background: white;
             padding: 1.5rem;
@@ -104,15 +74,19 @@
             box-shadow: 0 3px 6px rgba(0,0,0,0.1);
             margin: 1rem 0;
         }
+
+        .emergency-alert {
+            background: #ffebee;
+            border-left: 5px solid #c62828;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="brochure-container">
         <h1>Chronic Kidney Disease Progress Detector</h1>
-
-        <div class="stage-tracker">
-            <div class="progress-marker" id="progressMarker"></div>
-        </div>
 
         <div class="emergency-alert" id="emergencyAlert">
             <h3>⚠️ Emergency Alert</h3>
@@ -170,7 +144,6 @@
             const trends = calculateTrends(validValues);
             
             // Update display
-            updateProgressMarker(currentStage);
             updateEmergencyAlert(currentGFR);
             updateCharts(validValues);
             updateDashboard(currentGFR, currentStage, trends);
@@ -192,17 +165,6 @@
             return trends;
         }
 
-        function updateProgressMarker(stage) {
-            const positions = {
-                'Stage 1': '10%',
-                'Stage 2': '30%',
-                'Stage 3': '50%',
-                'Stage 4': '70%',
-                'Stage 5': '90%'
-            };
-            document.getElementById('progressMarker').style.left = positions[stage];
-        }
-
         function updateEmergencyAlert(gfr) {
             document.getElementById('emergencyAlert').style.display = gfr < 15 ? 'block' : 'none';
         }
@@ -217,7 +179,7 @@
                 orderedValues.unshift(orderedValues[0]);
             }
 
-            // Trend Chart
+            // Trend Chart - Line Chart
             const ctxTrend = document.getElementById('trendChart').getContext('2d');
             trendChart = new Chart(ctxTrend, {
                 type: 'line',
@@ -227,10 +189,13 @@
                         label: 'GFR Values',
                         data: orderedValues,
                         borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.2)',
                         tension: 0.3,
                         borderWidth: 2,
-                        fill: false,
-                        pointBackgroundColor: '#2196F3'
+                        fill: true,
+                        pointBackgroundColor: '#2196F3',
+                        pointBorderColor: '#2196F3',
+                        pointRadius: 5,
                     }]
                 },
                 options: {
@@ -241,40 +206,48 @@
                             title: {
                                 display: true,
                                 text: 'GFR (mL/min/1.73m²)'
+                            },
+                            ticks: {
+                                stepSize: 10,
                             }
                         }
                     }
                 }
             });
 
-            // Stage Chart
+            // Stage Chart - Pie Chart (Segmented Circle)
             const currentStage = getStage(orderedValues[2]);
             const stageIndex = ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'].indexOf(currentStage);
 
             const stageColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#B71C1C'];
+            const stageData = [1, 1, 1, 1, 1]; // Static values
             const stageHighlights = stageColors.map((color, index) => 
                 index === stageIndex ? color : '#E0E0E0'
             );
 
             const ctxStage = document.getElementById('stageChart').getContext('2d');
             stageChart = new Chart(ctxStage, {
-                type: 'bar',
+                type: 'pie',
                 data: {
                     labels: ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'],
                     datasets: [{
-                        label: 'Current Stage Highlight',
-                        data: [1, 1, 1, 1, 1],
-                        backgroundColor: stageHighlights
+                        label: 'Current Stage',
+                        data: stageData,
+                        backgroundColor: stageHighlights,
                     }]
                 },
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            display: false
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (tooltipItem) => {
+                                    return tooltipItem.label + ': ' + (tooltipItem.raw === 1 ? 'Current' : 'Not Current');
+                                }
+                            }
                         }
                     }
                 }
