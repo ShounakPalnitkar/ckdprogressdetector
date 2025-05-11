@@ -31,6 +31,28 @@
             padding: 3rem;
         }
 
+        .stage-tracker {
+            height: 30px;
+            background: linear-gradient(90deg, 
+                var(--stage1) 20%,
+                var(--stage2) 20% 40%,
+                var(--stage3) 40% 60%,
+                var(--stage4) 60% 80%,
+                var(--stage5) 80% 100%);
+            border-radius: 15px;
+            margin: 2rem 0;
+            position: relative;
+        }
+
+        .progress-marker {
+            position: absolute;
+            height: 40px;
+            width: 4px;
+            background: #212121;
+            top: -5px;
+            transition: left 0.5s ease;
+        }
+
         .input-section {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -67,14 +89,6 @@
             margin-top: 2rem;
         }
 
-        .dashboard-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 15px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-            margin: 1rem 0;
-        }
-
         .emergency-alert {
             background: #ffebee;
             border-left: 5px solid #c62828;
@@ -82,11 +96,23 @@
             margin: 1rem 0;
             display: none;
         }
+
+        .dashboard-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            margin: 1rem 0;
+        }
     </style>
 </head>
 <body>
     <div class="brochure-container">
         <h1>Chronic Kidney Disease Progress Detector</h1>
+
+        <div class="stage-tracker">
+            <div class="progress-marker" id="progressMarker"></div>
+        </div>
 
         <div class="emergency-alert" id="emergencyAlert">
             <h3>⚠️ Emergency Alert</h3>
@@ -144,6 +170,7 @@
             const trends = calculateTrends(validValues);
             
             // Update display
+            updateProgressMarker(currentStage);
             updateEmergencyAlert(currentGFR);
             updateCharts(validValues);
             updateDashboard(currentGFR, currentStage, trends);
@@ -165,37 +192,34 @@
             return trends;
         }
 
+        function updateProgressMarker(stage) {
+            const positions = {
+                'Stage 1': '10%',
+                'Stage 2': '30%',
+                'Stage 3': '50%',
+                'Stage 4': '70%',
+                'Stage 5': '90%'
+            };
+            document.getElementById('progressMarker').style.left = positions[stage];
+        }
+
         function updateEmergencyAlert(gfr) {
             document.getElementById('emergencyAlert').style.display = gfr < 15 ? 'block' : 'none';
         }
 
         function updateCharts(values) {
-            // Ensure values are in the correct time order: [6 Months Ago, 3 Months Ago, Current]
-            const orderedLabels = ['6 Months Ago', '3 Months Ago', 'Current'];
-            const orderedValues = [...values]; // Clone to avoid in-place mutation
-
-            // Pad with currentGFR if fewer than 3 values are provided
-            while (orderedValues.length < 3) {
-                orderedValues.unshift(orderedValues[0]);
-            }
-
-            // Trend Chart - Line Chart
+            // Trend Chart
             const ctxTrend = document.getElementById('trendChart').getContext('2d');
             trendChart = new Chart(ctxTrend, {
                 type: 'line',
                 data: {
-                    labels: orderedLabels,
+                    labels: ['6 Months Ago', '3 Months Ago', 'Current'],
                     datasets: [{
                         label: 'GFR Values',
-                        data: orderedValues,
+                        data: values.reverse(),
                         borderColor: '#2196F3',
-                        backgroundColor: 'rgba(33, 150, 243, 0.2)',
                         tension: 0.3,
-                        borderWidth: 2,
-                        fill: true,
-                        pointBackgroundColor: '#2196F3',
-                        pointBorderColor: '#2196F3',
-                        pointRadius: 5,
+                        borderWidth: 2
                     }]
                 },
                 options: {
@@ -206,47 +230,38 @@
                             title: {
                                 display: true,
                                 text: 'GFR (mL/min/1.73m²)'
-                            },
-                            ticks: {
-                                stepSize: 10,
                             }
                         }
                     }
                 }
             });
 
-            // Stage Chart - Pie Chart (Segmented Circle)
-            const currentStage = getStage(orderedValues[2]);
-            const stageIndex = ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'].indexOf(currentStage);
-
-            const stageColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#B71C1C'];
-            const stageData = [1, 1, 1, 1, 1]; // Static values
-            const stageHighlights = stageColors.map((color, index) => 
-                index === stageIndex ? color : '#E0E0E0'
-            );
-
+            // Stage Chart
             const ctxStage = document.getElementById('stageChart').getContext('2d');
             stageChart = new Chart(ctxStage, {
-                type: 'pie',
+                type: 'bar',
                 data: {
                     labels: ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'],
                     datasets: [{
-                        label: 'Current Stage',
-                        data: stageData,
-                        backgroundColor: stageHighlights,
+                        label: 'GFR Ranges',
+                        data: [90, 60, 30, 15, 0],
+                        backgroundColor: [
+                            '#4CAF50',
+                            '#FFEB3B',
+                            '#FF9800',
+                            '#F44336',
+                            '#B71C1C'
+                        ]
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: (tooltipItem) => {
-                                    return tooltipItem.label + ': ' + (tooltipItem.raw === 1 ? 'Current' : 'Not Current');
-                                }
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'GFR Threshold'
                             }
                         }
                     }
@@ -254,12 +269,12 @@
             });
         }
 
-        function updateDashboard(currentGFR, currentStage, trends) {
-            const dashboardContent = document.getElementById('dashboardContent');
-            dashboardContent.innerHTML = `
-                <p><strong>Current GFR:</strong> ${currentGFR} mL/min/1.73m²</p>
-                <p><strong>Stage:</strong> ${currentStage}</p>
-                <p><strong>Trends:</strong> ${trends.map(trend => trend < 0 ? '↓' : '↑').join(' ')}</p>
+        function updateDashboard(gfr, stage, trends) {
+            const dashboard = document.getElementById('dashboardContent');
+            dashboard.innerHTML = `
+                <p>Current GFR: <strong>${gfr}</strong></p>
+                <p>Stage: <strong>${stage}</strong></p>
+                <p>Trend: ${trends.map(t => t.toFixed(1)).join(' → ')} mL/min/3mo</p>
             `;
         }
     </script>
