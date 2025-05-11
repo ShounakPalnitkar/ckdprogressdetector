@@ -2,69 +2,293 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CKD Risk Visualization Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronic Kidney Disease Progress Detector</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --stage1: #4CAF50;
+            --stage2: #FFEB3B;
+            --stage3: #FF9800;
+            --stage4: #F44336;
+            --stage5: #B71C1C;
+            --primary: #2196F3;
+            --background: #f8f9fa;
+        }
+
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 2rem;
-            background-color: #f5f6fa;
+            background: var(--background);
         }
-        .container {
+
+        .brochure-container {
             max-width: 1200px;
-            margin: auto;
-            padding: 20px;
+            margin: 0 auto;
             background: white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            border-radius: 10px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 3rem;
         }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 10px;
+
+        .stage-tracker {
+            height: 30px;
+            background: linear-gradient(90deg, 
+                var(--stage1) 20%,
+                var(--stage2) 20% 40%,
+                var(--stage3) 40% 60%,
+                var(--stage4) 60% 80%,
+                var(--stage5) 80% 100%);
+            border-radius: 15px;
+            margin: 2rem 0;
+            position: relative;
         }
-        .chart-container {
-            margin: 30px 0;
-            padding: 20px;
-            background: #f9f9f9;
+
+        .progress-marker {
+            position: absolute;
+            height: 40px;
+            width: 4px;
+            background: #212121;
+            top: -5px;
+            transition: left 0.5s ease;
+        }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
+            font-size: 1rem;
         }
-        img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 5px;
+
+        button {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: transform 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .chart-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .emergency-alert {
+            background: #ffebee;
+            border-left: 5px solid #c62828;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .dashboard-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            margin: 1rem 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>CKD Risk Visualization Dashboard</h1>
+    <div class="brochure-container">
+        <h1>Chronic Kidney Disease Progress Detector</h1>
 
-        <div class="chart-container">
-            <h2>Kidney Anatomy</h2>
-            <img src="data:image/png;base64,{kidney_base64}">
+        <div class="stage-tracker">
+            <div class="progress-marker" id="progressMarker"></div>
+        </div>
+
+        <div class="emergency-alert" id="emergencyAlert">
+            <h3>⚠️ Emergency Alert</h3>
+            <p>Seek immediate medical attention! Contact your nephrologist now.</p>
+            <button onclick="document.getElementById('emergencyAlert').style.display = 'none'">Dismiss</button>
+        </div>
+
+        <div class="input-section">
+            <input type="number" id="currentGFR" placeholder="Current GFR">
+            <input type="number" id="prevGFR1" placeholder="3 Months Ago">
+            <input type="number" id="prevGFR2" placeholder="6 Months Ago">
+            <button onclick="analyzeProgression()">Analyze</button>
         </div>
 
         <div class="chart-container">
-            <h2>Health Parameters</h2>
-            <img src="data:image/png;base64,{bar_chart_base64}">
+            <div class="dashboard-card">
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div class="dashboard-card">
+                <canvas id="stageChart"></canvas>
+            </div>
         </div>
 
-        <div class="chart-container">
-            <h2>Parameter Distribution</h2>
-            <img src="data:image/png;base64,{pie_chart_base64}">
-        </div>
-
-        <div class="chart-container">
-            <h2>Parameter Trends</h2>
-            <img src="data:image/png;base64,{line_chart_base64}">
-        </div>
-
-        <div class="chart-container">
-            <h2>5-Year Risk Probability</h2>
-            {plotly_donut_html}
+        <div class="dashboard-card">
+            <h2>Progression Dashboard</h2>
+            <div id="dashboardContent"></div>
         </div>
     </div>
+
+    <script>
+        let trendChart, stageChart;
+
+        function analyzeProgression() {
+            // Clear previous charts
+            if(trendChart) trendChart.destroy();
+            if(stageChart) stageChart.destroy();
+
+            // Get input values
+            const currentGFR = parseFloat(document.getElementById('currentGFR').value);
+            const prevGFR1 = parseFloat(document.getElementById('prevGFR1').value);
+            const prevGFR2 = parseFloat(document.getElementById('prevGFR2').value);
+
+            // Validate input
+            if(isNaN(currentGFR)) {
+                alert('Please enter current GFR value');
+                return;
+            }
+
+            // Process values
+            const gfrValues = [currentGFR, prevGFR1, prevGFR2].filter(v => !isNaN(v));
+            const validValues = gfrValues.length >= 2 ? gfrValues : [currentGFR, currentGFR, currentGFR];
+            
+            // Calculate stage and trends
+            const currentStage = getStage(currentGFR);
+            const trends = calculateTrends(validValues);
+            
+            // Update display
+            updateProgressMarker(currentStage);
+            updateEmergencyAlert(currentGFR);
+            updateCharts(validValues);
+            updateDashboard(currentGFR, currentStage, trends);
+        }
+
+        function getStage(gfr) {
+            if(gfr >= 90) return 'Stage 1';
+            if(gfr >= 60) return 'Stage 2';
+            if(gfr >= 30) return 'Stage 3';
+            if(gfr >= 15) return 'Stage 4';
+            return 'Stage 5';
+        }
+
+        function calculateTrends(values) {
+            const trends = [];
+            for(let i = 1; i < values.length; i++) {
+                trends.push(values[i-1] - values[i]);
+            }
+            return trends;
+        }
+
+        function updateProgressMarker(stage) {
+            const positions = {
+                'Stage 1': '10%',
+                'Stage 2': '30%',
+                'Stage 3': '50%',
+                'Stage 4': '70%',
+                'Stage 5': '90%'
+            };
+            document.getElementById('progressMarker').style.left = positions[stage];
+        }
+
+        function updateEmergencyAlert(gfr) {
+            document.getElementById('emergencyAlert').style.display = gfr < 15 ? 'block' : 'none';
+        }
+
+        function updateCharts(values) {
+            // Ensure values are in the correct time order: [6 Months Ago, 3 Months Ago, Current]
+            const orderedLabels = ['6 Months Ago', '3 Months Ago', 'Current'];
+            const orderedValues = [...values]; // Clone to avoid in-place mutation
+
+            // Pad with currentGFR if fewer than 3 values are provided
+            while (orderedValues.length < 3) {
+                orderedValues.unshift(orderedValues[0]);
+            }
+
+            // Trend Chart
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: orderedLabels,
+                    datasets: [{
+                        label: 'GFR Values',
+                        data: orderedValues,
+                        borderColor: '#2196F3',
+                        tension: 0.3,
+                        borderWidth: 2,
+                        fill: false,
+                        pointBackgroundColor: '#2196F3'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'GFR (mL/min/1.73m²)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Stage Chart
+            const currentStage = getStage(orderedValues[2]);
+            const stageIndex = ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'].indexOf(currentStage);
+
+            const stageColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#B71C1C'];
+            const stageHighlights = stageColors.map((color, index) => 
+                index === stageIndex ? color : '#E0E0E0'
+            );
+
+            const ctxStage = document.getElementById('stageChart').getContext('2d');
+            stageChart = new Chart(ctxStage, {
+                type: 'bar',
+                data: {
+                    labels: ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'],
+                    datasets: [{
+                        label: 'Current Stage Highlight',
+                        data: [1, 1, 1, 1, 1],
+                        backgroundColor: stageHighlights
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDashboard(currentGFR, currentStage, trends) {
+            const dashboardContent = document.getElementById('dashboardContent');
+            dashboardContent.innerHTML = `
+                <p><strong>Current GFR:</strong> ${currentGFR} mL/min/1.73m²</p>
+                <p><strong>Stage:</strong> ${currentStage}</p>
+                <p><strong>Trends:</strong> ${trends.map(trend => trend < 0 ? '↓' : '↑').join(' ')}</p>
+            `;
+        }
+    </script>
 </body>
 </html>
