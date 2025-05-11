@@ -1,0 +1,137 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+import base64
+from io import BytesIO
+
+# User Data
+user_data = {
+    'Age': 52,
+    'Blood Pressure': 145,
+    'Glucose': 160,
+    'Albumin': 3,
+    'Hemoglobin': 10.5,
+    'Diabetes Mellitus': 'yes',
+    'Hypertension': 'yes',
+    'Smoking': 'yes',
+    'Obesity': 'no',
+    'Risk Score': 76,
+    'CKD Risk Probability (5 Year)': 0.82
+}
+
+# Save matplotlib fig as base64 string
+def fig_to_base64(fig):
+    buf = BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    img_bytes = buf.read()
+    base64_str = base64.b64encode(img_bytes).decode('utf-8')
+    plt.close(fig)
+    return base64_str
+
+# 1. Kidney Diagram
+def draw_kidney():
+    fig, ax = plt.subplots(figsize=(6, 8))
+    kidney = plt.Circle((0.5, 0.5), 0.4, color='salmon', ec='brown', lw=4)
+    ax.add_patch(kidney)
+    ax.plot([0.1, 0.5], [0.8, 0.5], color='red', lw=3, label='Renal Artery')
+    ax.plot([0.9, 0.5], [0.8, 0.5], color='blue', lw=3, label='Renal Vein')
+    ax.plot([0.5, 0.5], [0.1, 0.3], color='black', lw=3, label='Ureter')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis('off')
+    ax.set_title('Kidney Diagram', fontsize=16)
+    ax.legend()
+    return fig_to_base64(fig)
+
+# 2. Bar Chart
+def bar_chart_risk():
+    risk_factors = {
+        'Blood Pressure': user_data['Blood Pressure'],
+        'Glucose': user_data['Glucose'],
+        'Albumin': user_data['Albumin'] * 50,
+        'Hemoglobin': 150 - user_data['Hemoglobin'] * 10
+    }
+    df = pd.DataFrame(list(risk_factors.items()), columns=['Category', 'Score'])
+    fig, ax = plt.subplots(figsize=(7, 5))
+    sns.barplot(x='Score', y='Category', data=df, palette='Reds_r', ax=ax)
+    ax.set_title('Risk Score by Category')
+    ax.set_xlabel('Score')
+    ax.set_ylabel('Health Parameter')
+    return fig_to_base64(fig), risk_factors
+
+# 3. Pie Chart
+def pie_chart_risk(risk_factors):
+    labels = list(risk_factors.keys())
+    sizes = list(risk_factors.values())
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+    ax.set_title('Top Risk Factors for CKD')
+    return fig_to_base64(fig)
+
+# 4. Line Chart
+def line_chart_risk(risk_factors):
+    categories = list(risk_factors.keys())
+    values = list(risk_factors.values())
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.plot(categories, values, marker='o', linestyle='-', color='teal')
+    ax.set_title('Risk Comparison Across Key Factors')
+    ax.set_xlabel('Health Factor')
+    ax.set_ylabel('Risk Score')
+    return fig_to_base64(fig)
+
+# 5. Plotly Donut Chart
+def plotly_donut_chart():
+    probability = user_data['CKD Risk Probability (5 Year)']
+    fig = go.Figure(data=[go.Pie(
+        labels=['Risk', 'Safe'],
+        values=[probability, 1 - probability],
+        hole=0.5,
+        marker=dict(colors=['crimson', 'lightgreen']),
+        hoverinfo='label+percent'
+    )])
+    fig.update_layout(title='5-Year CKD Risk Probability')
+    return fig.to_html(full_html=False, include_plotlyjs='cdn')
+
+# Create and Save HTML
+def generate_html_report():
+    kidney_img = draw_kidney()
+    bar_img, risk_factors = bar_chart_risk()
+    pie_img = pie_chart_risk(risk_factors)
+    line_img = line_chart_risk(risk_factors)
+    donut_html = plotly_donut_chart()
+
+    html = f"""
+    <html>
+    <head>
+        <title>CKD Risk Visualization Report</title>
+    </head>
+    <body style="font-family:sans-serif; padding:30px;">
+        <h1>CKD Risk Visualization Dashboard</h1>
+
+        <h2>Kidney Diagram</h2>
+        <img src="data:image/png;base64,{kidney_img}" width="400"><br><br>
+
+        <h2>Risk Score by Category</h2>
+        <img src="data:image/png;base64,{bar_img}" width="500"><br><br>
+
+        <h2>Top Risk Factors</h2>
+        <img src="data:image/png;base64,{pie_img}" width="400"><br><br>
+
+        <h2>Risk Factor Comparison</h2>
+        <img src="data:image/png;base64,{line_img}" width="500"><br><br>
+
+        <h2>5-Year CKD Risk Probability</h2>
+        {donut_html}
+    </body>
+    </html>
+    """
+
+    with open("ckd_report.html", "w") as f:
+        f.write(html)
+    print("✅ CKD HTML Report created as 'ckd_report.html'.")
+
+# Run it
+generate_html_report()
